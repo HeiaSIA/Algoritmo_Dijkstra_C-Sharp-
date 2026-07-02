@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dijkstra Lenguaje "C#"</title>
+    <style>
+        /* --- Configuracion de colores --- */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #2b2b2b;
+            color: #a9b7c6;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 { 
+            color: #ffffff; 
+            margin-bottom: 15px;
+            font-weight: 500;
+            font-size: 24px;
+        }
+        .contenedor {
+            display: flex;
+            gap: 20px;
+            max-width: 1150px;
+            width: 100%;
+        }
+        .panel-control {
+            flex: 1;
+            background: #3c3f41;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #555555;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        h3 {
+            color: #ffffff;
+            margin: 0 0 5px 0;
+            font-size: 16px;
+            border-bottom: 1px solid #515151;
+            padding-bottom: 5px;
+        }
+        canvas {
+            background: #1e1e1e;
+            border: 1px solid #555555;
+            border-radius: 8px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+            cursor: crosshair;
+        }
+        /* Botones */
+        button {
+            background-color: #4b4d4d;
+            color: #bbbbbb;
+            border: 1px solid #5e6060;
+            padding: 10px 15px;
+            font-size: 13px;
+            border-radius: 4px;
+            cursor: pointer;
+            text-align: left;
+            transition: all 0.15s;
+        }
+        button:hover { 
+            background-color: #5a5c5c; 
+            color: #ffffff;
+        }
+        /* Color Morado */
+        button.activo { 
+            background-color: #7f52ff; 
+            color: white;
+            border-color: #9876ff;
+        }
+        button.btn-danger { 
+            background-color: #9e3939; 
+            color: white;
+            border-color: #b84d4d;
+        }
+        button.btn-danger:hover { background-color: #bc4545; }
+        
+        /* Botón (naranja-morado) */
+        button.btn-primario { 
+            background: linear-gradient(135deg, #f88909 0%, #7f52ff 100%);
+            color: white;
+            font-weight: bold;
+            text-align: center;
+            border: none;
+            font-size: 14px;
+            padding: 12px;
+        }
+        button.btn-primario:hover {
+            filter: brightness(1.1);
+        }
+        /* Consola de logs interna */
+        .logs {
+            background: #2b2b2b;
+            color: #a9b7c6;
+            padding: 12px;
+            border-radius: 4px;
+            border: 1px solid #555555;
+            height: 160px;
+            overflow-y: auto;
+            font-family: 'Consolas', monospace;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        .grupo-input {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            background: #313335;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #4b4b4b;
+        }
+        label { font-size: 13px; color: #bbb; }
+        select {
+            background: #2b2b2b;
+            color: #a9b7c6;
+            border: 1px solid #646464;
+            padding: 6px;
+            border-radius: 4px;
+            flex: 1;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Dijkstra Lenguaje "C#"</h1>
+    
+    <div class="contenedor">
+        <canvas id="lienzo" width="750" height="520"></canvas>
+
+        <div class="panel-control">
+            <h3> Herramientas de creacion de Grafo</h3>
+            <button id="btn-nodo" class="activo" onclick="cambiarModo('nodo')"> Modo: Crear Nodos (Letras)</button>
+            <button id="btn-arista" onclick="cambiarModo('arista')"> Modo: Unir Aristas</button>
+            <button id="btn-editar" onclick="cambiarModo('editar')"> Modo: Modificar Pesos</button>
+            <button id="btn-editar-nodo" onclick="cambiarModo('editarNodo')"> Modo: Editar Nodos</button>
+            <button class="btn-danger" onclick="eliminarUltimo()"> Remover Último Nodo</button>
+            
+            <h3> Ruta de Grafos Mínima</h3>
+            <div class="grupo-input">
+                <label>Desde:</label>
+                <select id="select-origen"><option value="">-- Añade nodos --</option></select>
+                <label>Hasta:</label>
+                <select id="select-destino"><option value="">-- Añade nodos --</option></select>
+            </div>
+            <button class="btn-primario" onclick="calcularDijkstra()">Iniciar el programa </button>
+
+            <h3> Terminal </h3>
+            <div id="logs" class="logs"></div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('lienzo');
+        const ctx = canvas.getContext('2d');
+
+        // Traductor de ID Numérico a Letras de la pizarra (0=A, 1=B, 2=C...)
+        function idALetra(id) {
+            const letras = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            return id >= 0 && id < letras.length ? letras[id] : `N${id}`;
+        }
+
+        function etiquetaDeNodo(nodo) {
+            return (nodo && (nodo.etiqueta || nodo.nombre)) || idALetra(nodo?.id);
+        }
+
+        canvas.addEventListener('click', function(event) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const x = Math.max(0, Math.min(canvas.width, (event.clientX - rect.left) * scaleX));
+            const y = Math.max(0, Math.min(canvas.height, (event.clientY - rect.top) * scaleY));
+            llamarAPI(`action=click&x=${x.toFixed(0)}&y=${y.toFixed(0)}`);
+        });
+
+        function cambiarModo(modo) {
+            llamarAPI(`action=cambiarModo&modo=${modo}`);
+        }
+
+        function eliminarUltimo() {
+            llamarAPI(`action=eliminar`);
+        }
+
+        function calcularDijkstra() {
+            const origen = document.getElementById('select-origen').value;
+            const destino = document.getElementById('select-destino').value;
+            if (origen === "" || destino === "") {
+                alert("Debes dibujar nodos en el lienzo antes de calcular.");
+                return;
+            }
+            llamarAPI(`action=dijkstra&origen=${origen}&destino=${destino}`);
+        }
+
+        function llamarAPI(query) {
+            fetch(`/api?${query}`)
+                .then(response => response.json())
+                .then(estado => procesarEstado(estado))
+                .catch(err => console.error("Error en comunicación con C#:", err));
+        }
+
+        // Traduce los logs numéricos del backend a Letras en tiempo real
+        function formatearLogs(logs) {
+            return logs.map(log => {
+                let texto = log;
+                texto = texto.replace(/Nodo (\d+)/g, (m, id) => `Nodo ${idALetra(parseInt(id))}`);
+                texto = texto.replace(/(\d+)\s*↔\s*(\d+)/g, (m, id1, id2) => `${idALetra(parseInt(id1))} ↔ ${idALetra(parseInt(id2))}`);
+                if (texto.includes('➔')) {
+                    texto = texto.replace(/([\d\s➔]+)/g, (m) => {
+                        if (!m.trim().includes('➔')) return m;
+                        return m.split('➔').map(part => {
+                            const num = parseInt(part.trim());
+                            return isNaN(num) ? part : ` ${idALetra(num)} `;
+                        }).join('➔');
+                    });
+                }
+                return texto;
+            });
+        }
+
+        // Actualiza los selectores desplegables automáticamente con letras
+        function actualizarDropdowns(nodos) {
+            const selectOrigen = document.getElementById('select-origen');
+            const selectDestino = document.getElementById('select-destino');
+            const oriPrevio = selectOrigen.value;
+            const destPrevio = selectDestino.value;
+
+            selectOrigen.innerHTML = '';
+            selectDestino.innerHTML = '';
+
+            if(nodos.length === 0) {
+                selectOrigen.innerHTML = '<option value="">-- Añade nodos --</option>';
+                selectDestino.innerHTML = '<option value="">-- Añade nodos --</option>';
+                return;
+            }
+
+            nodos.forEach(nodo => {
+                const letra = etiquetaDeNodo(nodo);
+                const opt1 = document.createElement('option');
+                opt1.value = nodo.id;
+                opt1.textContent = `Nodo ${letra}`;
+                selectOrigen.appendChild(opt1);
+
+                const opt2 = document.createElement('option');
+                opt2.value = nodo.id;
+                opt2.textContent = `Nodo ${letra}`;
+                selectDestino.appendChild(opt2);
+            });
+
+            if (nodos.some(n => n.id == oriPrevio)) selectOrigen.value = oriPrevio;
+            if (nodos.some(n => n.id == destPrevio)) selectDestino.value = destPrevio;
+        }
+
+        function procesarEstado(estado) {
+            if (estado.alert) alert(estado.alert);
+
+            // Popups interactivos usando Letras
+            if (estado.solicitarArista) {
+                const datos = estado.solicitarArista;
+                const peso = prompt(`[IntelliJ Connector] Ingrese el peso de la arista entre Nodo ${idALetra(datos.desde)} y Nodo ${idALetra(datos.hasta)}:`, "5");
+                if (peso !== null) {
+                    llamarAPI(`action=addArista&desde=${datos.desde}&hasta=${datos.hasta}&peso=${peso}`);
+                }
+                return;
+            }
+
+            if (estado.solicitarEdicionArista) {
+                const datos = estado.solicitarEdicionArista;
+                const nuevoPeso = prompt(`[IntelliJ Editor] Modificar el peso entre Nodo ${idALetra(datos.desde)} y Nodo ${idALetra(datos.hasta)}:`, datos.actual);
+                if (nuevoPeso !== null) {
+                    llamarAPI(`action=actualizarPeso&desde=${datos.desde}&hasta=${datos.hasta}&peso=${nuevoPeso}`);
+                }
+                return;
+            }
+
+            if (estado.solicitarEdicionNodo) {
+                const datos = estado.solicitarEdicionNodo;
+                const nombreActual = datos.nombre || idALetra(datos.id);
+                const nuevoNombre = prompt(`[IntelliJ Editor] Modificar el nombre del nodo ${nombreActual}:`, nombreActual);
+                if (nuevoNombre !== null) {
+                    llamarAPI(`action=editarNodo&id=${datos.id}&nombre=${encodeURIComponent(nuevoNombre)}`);
+                }
+                return;
+            }
+
+            // Cambiar estados visuales de los botones
+            document.getElementById('btn-nodo').className = estado.modo === 'nodo' ? 'activo' : '';
+            document.getElementById('btn-arista').className = estado.modo === 'arista' ? 'activo' : '';
+            document.getElementById('btn-editar').className = estado.modo === 'editar' ? 'activo' : '';
+            document.getElementById('btn-editar-nodo').className = estado.modo === 'editarNodo' ? 'activo' : '';
+
+            // Renderizar los selectores y la consola limpia
+            actualizarDropdowns(estado.nodos);
+            const divLogs = document.getElementById('logs');
+            divLogs.innerHTML = formatearLogs(estado.logs).map(log => `<div>${log}</div>`).join('');
+            divLogs.scrollTop = divLogs.scrollHeight;
+
+            // --- REDIBUJAR CANVAS ---
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.save();
+            ctx.globalCompositeOperation = 'source-over';
+
+            const nodos = Array.isArray(estado.nodos) ? estado.nodos : [];
+            const aristas = Array.isArray(estado.aristas) ? estado.aristas : [];
+            const ruta = Array.isArray(estado.rutaResaltada) ? estado.rutaResaltada : [];
+
+            aristas.forEach(arista => {
+                const n1 = nodos.find(n => n.id === arista.desde);
+                const n2 = nodos.find(n => n.id === arista.hasta);
+                if (n1 && n2) {
+                    const esResaltada = ruta.some(r => (r.de === arista.desde && r.a === arista.hasta) || (r.de === arista.hasta && r.a === arista.desde));
+                    ctx.beginPath();
+                    ctx.moveTo(Number(n1.x), Number(n1.y));
+                    ctx.lineTo(Number(n2.x), Number(n2.y));
+                    ctx.lineWidth = esResaltada ? 5 : 2;
+                    ctx.strokeStyle = esResaltada ? '#f88909' : '#555555';
+                    ctx.stroke();
+
+                    const midX = (Number(n1.x) + Number(n2.x)) / 2;
+                    const midY = (Number(n1.y) + Number(n2.y)) / 2;
+                    ctx.beginPath();
+                    ctx.arc(midX, midY, 10, 0, 2 * Math.PI);
+                    ctx.fillStyle = '#3c3f41';
+                    ctx.fill();
+                    ctx.fillStyle = '#ffc66d';
+                    ctx.font = 'bold 12px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(arista.weight ?? arista.peso, midX, midY);
+                }
+            });
+
+            nodos.forEach(nodo => {
+                const esSeleccionado = estado.nodoSeleccionado === nodo.id;
+                const x = Number(nodo.x);
+                const y = Number(nodo.y);
+                if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+
+                ctx.beginPath();
+                ctx.arc(x, y, 18, 0, 2 * Math.PI);
+                ctx.fillStyle = esSeleccionado ? '#f88909' : '#7f52ff';
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = '#ffffff';
+                ctx.stroke();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = "bold 13px 'Segoe UI', Arial";
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(etiquetaDeNodo(nodo), x, y);
+            });
+            ctx.restore();
+        }
+
+        llamarAPI('action=get');
+    </script>
+</body>
+</html>
